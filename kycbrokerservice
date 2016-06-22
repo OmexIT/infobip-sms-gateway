@@ -1,0 +1,81 @@
+#!/bin/bash
+
+### BEGIN INIT INFO
+# Provides: Nanome Service
+# Required-Start:
+# Required-Stop:
+# Default-Start:  2 3 4 5
+# Default-Stop:   0 1 6
+# Description: Init script for KYC Broker Service.
+### END INIT INFO
+
+#[ "$(whoami)" != "root" ] && echo "Why you no root? Now exiting." && exit 2
+
+# Service Parameters
+HOME=/home/aomeri/apps/infobip-sms-gateway
+PIDFILE=$HOME/infobip-sms-app.pid
+JAVA_HOME=/opt/jdk/jdk1.8.0_65
+# System variables
+
+# pick ALL the Libraries that are in the LIB_DIR
+#CP_LIBS=$(find "$HOME/lib/" -name '*.jar' -printf '%p:' | sed 's/:$//')
+#CP=$HOME/bin/MobileMoneyService.jar
+#CP=$CP:$CP_LIBS
+
+# 
+DAEMON=$JAVA_HOME/bin/java
+ARGS=" -Dlog4j.configuration=file:$HOME/config/log4j.properties -Dkyc.service.config=$HOME/config/service.properties -jar $HOME/lib/infobip-sms-gateway-0.1.0-SNAPSHOT-standalone.jar"
+
+########################## FUNCTIONS ########################################
+running_p ()
+{
+	PIDFILE=$1
+	DAEMON=$2
+	if [ -f $PIDFILE ]; then
+		
+		PID=$(cat $PIDFILE)
+		EXE=$(readlink /proc/$PID/exe)		
+		if [ ! -z "$EXE" ] && [ "$EXE" = "$DAEMON" ]; then
+				return 0
+		fi
+	fi
+	return 1
+}
+
+## CASE Options
+
+case "$1" in
+  start)
+	if $(running_p $PIDFILE $DAEMON); then 
+		echo "KYC broker service is running"
+	else 
+		echo -n "Starting Infobip SMS gateway service... "
+		echo $(ps aux  |grep java | grep "infobip-sms-gateway-0.1.0-SNAPSHOT-standalone.jar" | awk '{print $2;exit}') > $PIDFILE
+		/sbin/start-stop-daemon -S -m -b -p $PIDFILE -x $DAEMON -- $ARGS	
+		echo "done! [PID: $(cat $PIDFILE)]"
+	fi	
+	;;
+	
+  stop)
+	if $(running_p $PIDFILE $DAEMON); then
+		echo -n "Stopping Infobip SMS gateway service [PID: $(cat $PIDFILE)]... "
+		/sbin/start-stop-daemon -K -p $PIDFILE -q --retry=TERM/5/KILL/3
+		echo "done!"
+		rm $PIDFILE
+	else
+		echo "Infobip SMS gateway service was not running"
+	fi
+	;;
+  restart)
+	$0 stop && $0 start
+	;;
+  status)	
+	running_p $PIDFILE $DAEMON && echo "Infobip SMS gateway service is running" || \
+		(echo " Infobip SMS gateway service is NOT running"; exit 3)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart|status}"
+	exit 1
+	;;
+esac
+
